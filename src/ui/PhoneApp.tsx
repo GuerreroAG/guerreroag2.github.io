@@ -376,7 +376,7 @@ export default function PhoneApp({
                 <SliderRow label="Cadence" display={`${chunkDelay} ms`} value={chunkDelay} min={0} max={30} onChange={setChunkDelay} />
                 <SelectRow label="Taille des paquets" value={chunkSize} options={[[20, '20 O'], [60, '60 O'], [128, '128 O'], [180, '180 O']]} onChange={(v) => setChunkSize(Number(v))} />
                 <SelectRow label="Vitesse d'impression" value={printSpeedMm} options={[[10, '10 mm/s'], [12.5, '12.5 mm/s'], [15, '15 mm/s'], [20, '20 mm/s'], [25, '25 mm/s']]} onChange={(v) => setPrintSpeedMm(Number(v))} />
-                <SelectRow label="Taille max de tâche" value={maxJobBytes} options={[[30000, '30 Ko'], [38000, '38 Ko'], [44000, '44 Ko (Mesuré)'], [50000, '50 Ko'], [200000, 'Sans limite']]} onChange={(v) => setMaxJobBytes(Number(v))} />
+                <SelectRow label="Taille max de tâche" value={maxJobBytes} options={[[30000, '30 Ko'], [38000, '38 Ko'], [44000, '44 Ko'], [50000, '50 Ko'], [200000, 'Sans limite']]} onChange={(v) => setMaxJobBytes(Number(v))} />
                 <SelectRow label="Lignes par bloc" value={maxBlockLines} options={[[65535, 'Ne pas diviser'], [1024, '1024'], [512, '512'], [256, '256']]} onChange={(v) => setMaxBlockLines(Number(v))} />
                 <Row label="Uniquement appareils Phomemo" onClick={() => connect(true)} />
               </div>
