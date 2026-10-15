@@ -35,7 +35,7 @@ export default function PhoneApp({
   const {
     query, setQuery, results, searching, scope, setScope,
     selected, mode, setMode, labelMm, setLabelMm,
-    localCounter, openCounter, // Nouveaux champs pour compteurs locaux
+    localCounter, openCounter,
     textBlockMm, setTextBlockMm, autoTextBlock, setAutoTextBlock,
     cardMm, setCardMm, cardFit, setCardFit,
     showArt, setShowArt, markTokens, setMarkTokens,
@@ -71,7 +71,6 @@ export default function PhoneApp({
 
   return (
     <div className="ios">
-      {/* ================= recherche ================= */}
       <section className={`screen${screen === 'detail' ? ' pushed' : ''}`}>
         <div className="scroll">
           <h1 className="largetitle">Jetons</h1>
@@ -111,7 +110,6 @@ export default function PhoneApp({
             ))}
           </div>
 
-          {/* --- NOUVEAU : MARQUEURS LOCAUX --- */}
           <h2 className="grouphead" style={{ marginTop: '0', marginLeft: '4px' }}>Marqueurs Locaux</h2>
           <div className="chips" style={{ paddingTop: '0' }}>
             {LOCAL_COUNTERS.map((p) => (
@@ -124,12 +122,8 @@ export default function PhoneApp({
           <div className="group">
             {printerName ? (
               <div className="row">
-                <span className="row-label">
-                  <span className="dot on" /> {printerName}
-                </span>
-                <button className="textbtn" onClick={() => connect()}>
-                  Reconnecter
-                </button>
+                <span className="row-label"><span className="dot on" /> {printerName}</span>
+                <button className="textbtn" onClick={() => connect()}>Reconnecter</button>
               </div>
             ) : (
               <button className="row tappable" onClick={() => connect()} disabled={!supported || busy}>
@@ -142,9 +136,7 @@ export default function PhoneApp({
             )}
           </div>
 
-          {status.msg && screen === 'search' && (
-            <p className={`footnote ${status.kind}`}>{status.msg}</p>
-          )}
+          {status.msg && screen === 'search' && <p className={`footnote ${status.kind}`}>{status.msg}</p>}
 
           {!supported && (
             <p className="footnote warn">
@@ -170,17 +162,11 @@ export default function PhoneApp({
 
           {results.length > 0 && (
             <>
-              <h2 className="grouphead">
-                {results.length} {results.length === 1 ? 'jeton' : 'jetons'} trouvés
-              </h2>
+              <h2 className="grouphead">{results.length} {results.length === 1 ? 'jeton' : 'jetons'} trouvés</h2>
               <div className="group list">
                 {results.map((c) => (
                   <button key={c.id} className="row tappable card" onClick={() => open(c)}>
-                    {c.imageUrl ? (
-                      <img src={c.imageUrl} alt="" loading="lazy" />
-                    ) : (
-                      <div className="thumb-none" />
-                    )}
+                    {c.imageUrl ? <img src={c.imageUrl} alt="" loading="lazy" /> : <div className="thumb-none" />}
                     <span className="card-text">
                       <span className="card-name">{c.name}</span>
                       <span className="card-type">{c.typeLine}</span>
@@ -208,7 +194,6 @@ export default function PhoneApp({
         </div>
       </section>
 
-      {/* ================= détails ================= */}
       <section className={`screen detail${screen === 'detail' ? ' open' : ''}`}>
         <div className="navbar">
           <button className="navback" onClick={() => setScreen('search')}>
@@ -226,7 +211,6 @@ export default function PhoneApp({
             {(selected || localCounter) ? <canvas ref={previewRef} /> : <p className="empty">Aucun jeton sélectionné</p>}
           </div>
 
-          {/* On cache les options de mode si on affiche un marqueur local */}
           {!localCounter && (
              mode === 'calib' ? (
               <div className="banner">
@@ -268,9 +252,7 @@ export default function PhoneApp({
             <Row label="Options d'impression" onClick={() => setSheet(true)} />
           </div>
 
-          {status.msg && screen === 'detail' && (
-            <p className={`footnote ${status.kind}`}>{status.msg}</p>
-          )}
+          {status.msg && screen === 'detail' && <p className={`footnote ${status.kind}`}>{status.msg}</p>}
           <div className="tailspace" />
         </div>
 
@@ -285,7 +267,6 @@ export default function PhoneApp({
         </div>
       </section>
 
-      {/* ================= menu options ================= */}
       <div className={`backdrop${sheet ? ' open' : ''}`} onClick={() => setSheet(false)} />
       <div className={`sheet${sheet ? ' open' : ''}`}>
         <div className="grabber" />
@@ -296,7 +277,6 @@ export default function PhoneApp({
 
         <div className="scroll">
           
-          {/* On désactive les réglages d'image si on imprime un simple texte mathématique */}
           {!localCounter && (
             <>
               <h2 className="grouphead">Apparence</h2>
@@ -337,7 +317,7 @@ export default function PhoneApp({
           <h2 className="grouphead">Papier</h2>
           <div className="group">
             <SliderRow label="Largeur" display={`${Math.min(labelMm.w, MAX_WIDTH_MM)} mm`} value={Math.min(labelMm.w, MAX_WIDTH_MM)} min={20} max={MAX_WIDTH_MM} onChange={(v) => setLabelMm((s) => ({ ...s, w: v }))} />
-            {mode !== 'both' && (
+            {(!localCounter && mode !== 'both') && (
               <SliderRow label="Hauteur" display={`${labelMm.h} mm`} value={labelMm.h} min={16} max={90} onChange={(v) => setLabelMm((s) => ({ ...s, h: v }))} />
             )}
             <SliderRow label="Marge de coupe" display={`${tearMm} mm`} value={tearMm} min={0} max={25} onChange={setTearMm} />
@@ -355,19 +335,69 @@ export default function PhoneApp({
             <Row label={showDiag ? 'Masquer les diagnostics' : 'Afficher les diagnostics'} onClick={() => setShowDiag((v) => !v)} />
           </div>
 
+          {(!localCounter && mode === 'calib') && (
+            <div className="group">
+              <label className="row slider">
+                <span className="row-label">Valeurs de Luminosité</span>
+                <input type="text" value={sweepBright} onChange={(e) => setSweepBright(e.target.value)} />
+              </label>
+              <label className="row slider">
+                <span className="row-label">Valeurs de Contraste</span>
+                <input type="text" value={sweepContrast} onChange={(e) => setSweepContrast(e.target.value)} />
+              </label>
+              <SelectRow label="Disposition" value={calibLayout} options={[['stack', 'Empilé'], ['grid', 'Grille']]} onChange={(v) => setCalibLayout(v as CalibLayout)} />
+              <SelectRow label="Échantillon" value={calibContent} options={[['art', 'Bande d\'art'], ['card', 'Carte entière']]} onChange={(v) => setCalibContent(v as CalibContent)} />
+              {calibContent === 'art' && (
+                <SliderRow label="Hauteur d'échantillon" display={`${(cellH / 8).toFixed(0)} mm`} value={cellH} min={80} max={360} step={10} onChange={setCellH} />
+              )}
+            </div>
+          )}
+
           {showDiag && (
             <>
+              {!localCounter && (
+                <div className="group">
+                  <SelectRow label="Tramage" value={dither} options={[['atkinson', 'Atkinson'], ['floyd-steinberg', 'Floyd–Steinberg'], ['threshold', 'Seuillage']]} onChange={(v) => setDither(v as Dither)} />
+                  <SliderRow label="Seuillage" display={`${threshold}`} value={threshold} min={40} max={220} onChange={setThreshold} />
+                  <SwitchRow label="Contraste local (CLAHE)" checked={claheOn} onChange={setClaheOn} />
+                  {claheOn && (
+                    <>
+                      <SliderRow label="Limite de coupe" display={clipLimit.toFixed(1)} value={clipLimit} min={1} max={6} step={0.5} onChange={setClipLimit} />
+                      <SliderRow label="Tuiles" display={`${tiles}×${tiles}`} value={tiles} min={2} max={16} step={2} onChange={setTiles} />
+                    </>
+                  )}
+                </div>
+              )}
               <div className="group">
-                <SelectRow label="Tramage" value={dither} options={[['atkinson', 'Atkinson'], ['floyd-steinberg', 'Floyd–Steinberg'], ['threshold', 'Seuillage']]} onChange={(v) => setDither(v as Dither)} />
-                <SliderRow label="Seuillage" display={`${threshold}`} value={threshold} min={40} max={220} onChange={setThreshold} />
-              </div>
-              <div className="group">
+                {writeMode === 'without-response' && (
+                  <p className="footnote warn">Sans réponse, les paquets sont limités à 20 octets.</p>
+                )}
                 <SelectRow label="Mode d'écriture" value={writeMode} options={[['with-response', 'Avec réponse'], ['without-response', 'Sans réponse']]} onChange={(v) => setWriteMode(v as WriteMode)} />
+                <SliderRow label="Cadence" display={`${chunkDelay} ms`} value={chunkDelay} min={0} max={30} onChange={setChunkDelay} />
                 <SelectRow label="Taille des paquets" value={chunkSize} options={[[20, '20 O'], [60, '60 O'], [128, '128 O'], [180, '180 O']]} onChange={(v) => setChunkSize(Number(v))} />
+                <SelectRow label="Vitesse d'impression" value={printSpeedMm} options={[[10, '10 mm/s'], [12.5, '12.5 mm/s'], [15, '15 mm/s'], [20, '20 mm/s'], [25, '25 mm/s']]} onChange={(v) => setPrintSpeedMm(Number(v))} />
+                <SelectRow label="Taille max de tâche" value={maxJobBytes} options={[[30000, '30 Ko'], [38000, '38 Ko'], [44000, '44 Ko (Mesuré)'], [50000, '50 Ko'], [200000, 'Sans limite']]} onChange={(v) => setMaxJobBytes(Number(v))} />
+                <SelectRow label="Lignes par bloc" value={maxBlockLines} options={[[65535, 'Ne pas diviser'], [1024, '1024'], [512, '512'], [256, '256']]} onChange={(v) => setMaxBlockLines(Number(v))} />
+                <Row label="Uniquement appareils Phomemo" onClick={() => connect(true)} />
               </div>
+              <p className="footnote mono">
+                {geometry.widthPx} points · {geometry.widthBytes} octets/ligne
+                {(!localCounter && tone) ? ` · moyenne carte ${tone.mean.toFixed(0)}` : ''}
+                {(!localCounter && solved) ? ` · L${solved.brightness > 0 ? '+' : ''}${solved.brightness} · encre ${(solved.predictedInk * 100).toFixed(0)}%` : ''}
+              </p>
               {diag.length > 0 && <pre>{diag.join('\n')}</pre>}
             </>
           )}
+
+          {onUseDesktopLayout && (
+            <>
+              <h2 className="grouphead">Interface</h2>
+              <div className="group">
+                <Row label="Utiliser l'affichage Bureau" onClick={onUseDesktopLayout} />
+              </div>
+            </>
+          )}
+
           <div className="tailspace" />
         </div>
       </div>
