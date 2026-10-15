@@ -1,10 +1,5 @@
 /**
- * Desktop interface.
- *
- * A desktop browser has room to show everything at once, so there is no
- * navigation stack and no settings sheet: results, preview and settings sit
- * side by side. The phone's push transitions and modal sheet are worse with a
- * mouse, not better.
+ * Interface Bureau.
  */
 import { useEffect, useRef } from 'react';
 import { statLabel } from '../scryfall';
@@ -18,9 +13,17 @@ import {
   type WriteMode,
 } from '../printer';
 import type { CalibLayout, CalibContent } from '../calibration';
-import { MODE_LABEL, QUICK_PICKS, type PrinterApi } from '../usePrinter';
+import { type PrinterApi, type Mode } from '../usePrinter';
 import { Row, SliderRow, SwitchRow, SelectRow } from './controls';
 import * as Icon from './icons';
+
+const FRENCH_QUICK_PICKS = ['Trésor', 'Nourriture', 'Indice', 'Gobelin', 'Zombie', 'Soldat', 'Ange', 'Bête'];
+const FRENCH_MODE_LABEL: Record<Mode, string> = {
+  text: 'Texte',
+  card: 'Carte',
+  both: 'Carte + Texte',
+  calib: 'Calibration',
+};
 
 export default function DesktopApp({
   api,
@@ -55,27 +58,35 @@ export default function DesktopApp({
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // A mouse and keyboard are available, so use them.
+  const startVoiceSearch = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.onresult = (e: any) => setQuery(e.results[0][0].transcript);
+    recognition.start();
+  };
+
   useEffect(() => {
     searchRef.current?.focus();
   }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Ctrl/Cmd+Enter prints from anywhere.
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
         if (selected && !busy) print();
         return;
       }
-      // Ctrl/Cmd+K focuses search, as most web apps do.
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
         return;
       }
-      // Arrow keys move through results unless a text field has focus.
       const typing =
         document.activeElement instanceof HTMLInputElement &&
         document.activeElement.type === 'text';
@@ -97,18 +108,18 @@ export default function DesktopApp({
   return (
     <div className="desk">
       <header className="topbar">
-        <h1>Token Printer</h1>
+        <h1>Générateur de Token</h1>
         <div className="spacer" />
         <span className="conn">
           <span className={`dot ${printerName ? 'on' : ''}`} />
-          {printerName ?? 'Not connected'}
+          {printerName ?? 'Non connecté'}
         </span>
         <button className="btn" onClick={() => connect()} disabled={!supported || busy}>
           <Icon.Bluetooth />
-          {printerName ? 'Reconnect' : 'Connect printer'}
+          {printerName ? 'Reconnecter' : 'Connecter l\'imprimante'}
         </button>
-        <button className="btn ghost" onClick={onUsePhoneLayout} title="Switch to the phone layout">
-          Phone view
+        <button className="btn ghost" onClick={onUsePhoneLayout} title="Basculer vers l'affichage Mobile">
+          Vue Mobile
         </button>
       </header>
 
@@ -116,27 +127,26 @@ export default function DesktopApp({
         <div className="banner err">
           <span>{status.msg}</span>
           <button className="btn" onClick={() => connect()} disabled={busy}>
-            Try again
+            Réessayer
           </button>
         </div>
       )}
 
       {!supported && (
         <p className="banner err">
-          This browser can’t reach Bluetooth devices. Chrome and Edge work as-is; Brave needs{' '}
-          <code>brave://flags/#brave-web-bluetooth-api</code> enabled.
+          Ce navigateur ne peut pas accéder au Bluetooth. Chrome et Edge fonctionnent nativement ; Brave nécessite l'activation de <code>brave://flags/#brave-web-bluetooth-api</code>.
         </p>
       )}
 
       <div className="cols">
-        {/* ---------------- results ---------------- */}
+        {/* ---------------- résultats ---------------- */}
         <section className="pane results-pane">
           <div className="segmented scope">
             <button className={scope === 'tokens' ? 'on' : ''} onClick={() => setScope('tokens')}>
-              Tokens
+              Jetons
             </button>
             <button className={scope === 'cards' ? 'on' : ''} onClick={() => setScope('cards')}>
-              All cards
+              Toutes les cartes
             </button>
           </div>
 
@@ -147,22 +157,30 @@ export default function DesktopApp({
               type="text"
               value={query}
               placeholder={
-                scope === 'tokens' ? 'Goblin, Treasure, Angel…' : 'Llanowar Elves, Teferi…'
+                scope === 'tokens' ? 'Gobelin, Trésor, Ange…' : 'Llanowar Elves, Teferi…'
               }
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && results.length > 0) setSelected(results[0]);
               }}
             />
+            <button 
+              className="clear" 
+              onClick={startVoiceSearch} 
+              aria-label="Recherche vocale"
+              style={{ fontSize: '18px', padding: '0 4px', marginRight: query ? '0' : '4px' }}
+            >
+              🎤
+            </button>
             {query && (
-              <button className="clear" onClick={() => setQuery('')} aria-label="Clear">
+              <button className="clear" onClick={() => setQuery('')} aria-label="Effacer">
                 <Icon.Clear />
               </button>
             )}
           </div>
 
           <div className="chips">
-            {QUICK_PICKS.map((p) => (
+            {FRENCH_QUICK_PICKS.map((p) => (
               <button
                 key={p}
                 className={query === p ? 'chip on' : 'chip'}
@@ -175,9 +193,9 @@ export default function DesktopApp({
 
           <p className="hint">
             {searching
-              ? 'Searching…'
-              : `${results.length} result${results.length === 1 ? '' : 's'}`}
-            <span className="keys">↑↓ select · ⏎ first · ⌘⏎ print</span>
+              ? 'Recherche en cours…'
+              : `${results.length} résultat${results.length === 1 ? '' : 's'}`}
+            <span className="keys">↑↓ choisir · ⏎ premier · ⌘⏎ imprimer</span>
           </p>
 
           <div className="dlist" ref={listRef}>
@@ -201,18 +219,18 @@ export default function DesktopApp({
               </button>
             ))}
             {!searching && query && results.length === 0 && (
-              <p className="hint pad">No matches for “{query}”.</p>
+              <p className="hint pad">Aucun résultat pour “{query}”.</p>
             )}
           </div>
         </section>
 
-        {/* ---------------- preview ---------------- */}
+        {/* ---------------- aperçu ---------------- */}
         <section className="pane preview-pane">
           {mode === 'calib' ? (
             <div className="banner tint">
-              <span>Calibration strip</span>
+              <span>Bande de calibration</span>
               <button className="textbtn" onClick={() => setMode('both')}>
-                Done
+                Terminé
               </button>
             </div>
           ) : (
@@ -224,7 +242,7 @@ export default function DesktopApp({
                   disabled={m !== 'text' && !selected?.printImageUrl}
                   onClick={() => setMode(m)}
                 >
-                  {MODE_LABEL[m]}
+                  {FRENCH_MODE_LABEL[m]}
                 </button>
               ))}
             </div>
@@ -236,7 +254,7 @@ export default function DesktopApp({
                 <canvas ref={previewRef} />
               </div>
             ) : (
-              <p className="empty">Search for a token or card, then pick one.</p>
+              <p className="empty">Cherchez un jeton ou une carte, puis sélectionnez-en un.</p>
             )}
           </div>
 
@@ -244,8 +262,8 @@ export default function DesktopApp({
             <span className="size">
               {printSize ? `${printSize.w.toFixed(0)} × ${printSize.h.toFixed(0)} mm` : '—'}
               {splitPlan && splitPlan.parts > 1 && (
-                <span className="split" title="Too long for one job, so it is sent in parts">
-                  {' '}· {splitPlan.parts} parts
+                <span className="split" title="Trop long pour une seule tâche, sera envoyé en plusieurs parties">
+                  {' '}· {splitPlan.parts} parties
                 </span>
               )}
             </span>
@@ -261,24 +279,24 @@ export default function DesktopApp({
             </span>
             <button className="primary" onClick={print} disabled={!selected || busy}>
               {busy && progress > 0
-                ? `Printing ${Math.round(progress * 100)}%`
+                ? `Impression ${Math.round(progress * 100)}%`
                 : copies > 1
-                  ? `Print ${copies}`
-                  : 'Print'}
+                  ? `Imprimer ${copies}`
+                  : 'Imprimer'}
             </button>
           </div>
 
           <p className={`status ${status.kind}`}>
-            {status.kind === 'err' ? ' ' : status.msg || ' '}
+            {status.kind === 'err' ? ' ' : status.msg || ' '}
           </p>
         </section>
 
-        {/* ---------------- settings ---------------- */}
+        {/* ---------------- paramètres ---------------- */}
         <aside className="pane settings-pane">
-          <h2 className="grouphead">Look</h2>
+          <h2 className="grouphead">Apparence</h2>
           <div className="group">
             <SliderRow
-              label="Ink"
+              label="Encre"
               display={`${targetInk}%`}
               value={targetInk}
               min={15}
@@ -286,7 +304,7 @@ export default function DesktopApp({
               onChange={setTargetInk}
             />
             <SliderRow
-              label="Contrast"
+              label="Contraste"
               display={contrast > 0 ? `+${contrast}` : `${contrast}`}
               value={contrast}
               min={-50}
@@ -294,13 +312,13 @@ export default function DesktopApp({
               onChange={setContrast}
             />
             <SwitchRow
-              label="Adjust each card automatically"
+              label="Ajuster chaque carte automatiquement"
               checked={autoToneOn}
               onChange={setAutoToneOn}
             />
             {!autoToneOn && (
               <SliderRow
-                label="Brightness"
+                label="Luminosité"
                 display={brightness > 0 ? `+${brightness}` : `${brightness}`}
                 value={brightness}
                 min={-60}
@@ -309,11 +327,11 @@ export default function DesktopApp({
               />
             )}
             {selected && !selected.isToken && (
-              <SwitchRow label="Mark as TOKEN" checked={markTokens} onChange={setMarkTokens} />
+              <SwitchRow label="Marquer comme JETON" checked={markTokens} onChange={setMarkTokens} />
             )}
             {mode === 'text' && (
               <SwitchRow
-                label="Include a strip of art"
+                label="Inclure une bande d'illustration"
                 checked={showArt}
                 disabled={!selected?.artUrl}
                 onChange={setShowArt}
@@ -321,14 +339,14 @@ export default function DesktopApp({
             )}
             {mode === 'both' && (
               <SwitchRow
-                label="Fit text to content"
+                label="Adapter le texte au contenu"
                 checked={autoTextBlock}
                 onChange={setAutoTextBlock}
               />
             )}
             {mode === 'both' && !autoTextBlock && (
               <SliderRow
-                label="Text height"
+                label="Hauteur du texte"
                 display={`${textBlockMm} mm`}
                 value={textBlockMm}
                 min={14}
@@ -338,8 +356,8 @@ export default function DesktopApp({
             )}
             {mode === 'both' && (
               <SliderRow
-                label="Card height"
-                display={cardMm > 0 ? `${cardMm} mm` : 'full'}
+                label="Hauteur de la carte"
+                display={cardMm > 0 ? `${cardMm} mm` : 'Pleine'}
                 value={cardMm}
                 min={0}
                 max={70}
@@ -349,11 +367,11 @@ export default function DesktopApp({
             )}
             {mode === 'card' && (
               <SelectRow
-                label="Card shape"
+                label="Format de la carte"
                 value={cardFit}
                 options={[
-                  ['aspect', 'Keep proportions'],
-                  ['label', 'Fit height'],
+                  ['aspect', 'Conserver les proportions'],
+                  ['label', 'Ajuster à la hauteur'],
                 ]}
                 onChange={(v) => setCardFit(v as CardFit)}
               />
@@ -361,14 +379,14 @@ export default function DesktopApp({
           </div>
           {solved?.clamped && (
             <p className="hint tint">
-              This card can’t reach {targetInk}% ink without washing out. Try lowering Ink.
+              Cette carte ne peut pas atteindre {targetInk}% d'encre sans être délavée. Essayez de réduire l'Encre.
             </p>
           )}
 
-          <h2 className="grouphead">Paper</h2>
+          <h2 className="grouphead">Papier</h2>
           <div className="group">
             <SliderRow
-              label="Width"
+              label="Largeur"
               display={`${Math.min(labelMm.w, MAX_WIDTH_MM)} mm`}
               value={Math.min(labelMm.w, MAX_WIDTH_MM)}
               min={20}
@@ -377,7 +395,7 @@ export default function DesktopApp({
             />
             {mode !== 'both' && (
               <SliderRow
-                label="Height"
+                label="Hauteur"
                 display={`${labelMm.h} mm`}
                 value={labelMm.h}
                 min={16}
@@ -386,7 +404,7 @@ export default function DesktopApp({
               />
             )}
             <SliderRow
-              label="Tear-off gap"
+              label="Marge de coupe"
               display={`${tearMm} mm`}
               value={tearMm}
               min={0}
@@ -394,7 +412,7 @@ export default function DesktopApp({
               onChange={setTearMm}
             />
             <SliderRow
-              label="Darkness"
+              label="Intensité"
               display={`${density}`}
               value={density}
               min={1}
@@ -402,29 +420,29 @@ export default function DesktopApp({
               onChange={setDensity}
             />
             <SelectRow
-              label="Paper type"
+              label="Type de papier"
               value={media}
               options={[
-                [MEDIA_CONTINUOUS, 'Continuous roll'],
-                [MEDIA_LABEL_WITH_GAPS, 'Die-cut labels'],
-                [MEDIA_LABEL_WITH_MARKS, 'Black-mark labels'],
+                [MEDIA_CONTINUOUS, 'Rouleau continu'],
+                [MEDIA_LABEL_WITH_GAPS, 'Étiquettes prédécoupées'],
+                [MEDIA_LABEL_WITH_MARKS, 'Étiquettes avec marque noire'],
               ]}
               onChange={(v) => setMedia(Number(v))}
             />
           </div>
 
-          <h2 className="grouphead">Advanced</h2>
+          <h2 className="grouphead">Avancé</h2>
           <div className="group">
-            <Row label="Send test pattern" onClick={testPrint} />
-            <Row label="Clear printer" onClick={reset} />
+            <Row label="Imprimer un motif de test" onClick={testPrint} />
+            <Row label="Vider la mémoire (Reset)" onClick={reset} />
             <Row
-              label="Calibration strip"
+              label="Bande de calibration"
               onClick={() => {
                 if (selected?.printImageUrl) setMode('calib');
               }}
             />
             <Row
-              label={showDiag ? 'Hide diagnostics' : 'Show diagnostics'}
+              label={showDiag ? 'Masquer les diagnostics' : 'Afficher les diagnostics'}
               onClick={() => setShowDiag(!showDiag)}
             />
           </div>
@@ -432,7 +450,7 @@ export default function DesktopApp({
           {mode === 'calib' && (
             <div className="group">
               <label className="row slider">
-                <span className="row-label">Brightness values</span>
+                <span className="row-label">Valeurs de Luminosité</span>
                 <input
                   type="text"
                   value={sweepBright}
@@ -440,7 +458,7 @@ export default function DesktopApp({
                 />
               </label>
               <label className="row slider">
-                <span className="row-label">Contrast values</span>
+                <span className="row-label">Valeurs de Contraste</span>
                 <input
                   type="text"
                   value={sweepContrast}
@@ -448,26 +466,26 @@ export default function DesktopApp({
                 />
               </label>
               <SelectRow
-                label="Layout"
+                label="Disposition"
                 value={calibLayout}
                 options={[
-                  ['stack', 'Stacked'],
-                  ['grid', 'Grid'],
+                  ['stack', 'Empilé'],
+                  ['grid', 'Grille'],
                 ]}
                 onChange={(v) => setCalibLayout(v as CalibLayout)}
               />
               <SelectRow
-                label="Sample"
+                label="Échantillon"
                 value={calibContent}
                 options={[
-                  ['art', 'Art band'],
-                  ['card', 'Whole card'],
+                  ['art', 'Bande d\'art'],
+                  ['card', 'Carte entière'],
                 ]}
                 onChange={(v) => setCalibContent(v as CalibContent)}
               />
               {calibContent === 'art' && (
                 <SliderRow
-                  label="Sample height"
+                  label="Hauteur d'échantillon"
                   display={`${(cellH / 8).toFixed(0)} mm`}
                   value={cellH}
                   min={80}
@@ -483,28 +501,28 @@ export default function DesktopApp({
             <>
               <div className="group">
                 <SelectRow
-                  label="Dither"
+                  label="Tramage"
                   value={dither}
                   options={[
                     ['atkinson', 'Atkinson'],
                     ['floyd-steinberg', 'Floyd–Steinberg'],
-                    ['threshold', 'Threshold'],
+                    ['threshold', 'Seuillage'],
                   ]}
                   onChange={(v) => setDither(v as Dither)}
                 />
                 <SliderRow
-                  label="Threshold"
+                  label="Seuillage"
                   display={`${threshold}`}
                   value={threshold}
                   min={40}
                   max={220}
                   onChange={setThreshold}
                 />
-                <SwitchRow label="Local contrast (CLAHE)" checked={claheOn} onChange={setClaheOn} />
+                <SwitchRow label="Contraste local (CLAHE)" checked={claheOn} onChange={setClaheOn} />
                 {claheOn && (
                   <>
                     <SliderRow
-                      label="Clip limit"
+                      label="Limite de coupe"
                       display={clipLimit.toFixed(1)}
                       value={clipLimit}
                       min={1}
@@ -513,7 +531,7 @@ export default function DesktopApp({
                       onChange={setClipLimit}
                     />
                     <SliderRow
-                      label="Tiles"
+                      label="Tuiles"
                       display={`${tiles}×${tiles}`}
                       value={tiles}
                       min={2}
@@ -526,7 +544,7 @@ export default function DesktopApp({
               </div>
               <div className="group">
                 <SliderRow
-                  label="Pacing"
+                  label="Cadence"
                   display={`${chunkDelay} ms`}
                   value={chunkDelay}
                   min={0}
@@ -534,67 +552,67 @@ export default function DesktopApp({
                   onChange={setChunkDelay}
                 />
                 <SelectRow
-                  label="Write mode"
+                  label="Mode d'écriture"
                   value={writeMode}
                   options={[
-                    ['with-response', 'With response'],
-                    ['without-response', 'Without response'],
+                    ['with-response', 'Avec réponse'],
+                    ['without-response', 'Sans réponse'],
                   ]}
                   onChange={(v) => setWriteMode(v as WriteMode)}
                 />
                 <SelectRow
-                  label="Chunk size"
+                  label="Taille des paquets"
                   value={chunkSize}
                   options={[
-                    [20, '20 B'],
-                    [60, '60 B'],
-                    [128, '128 B'],
-                    [180, '180 B'],
+                    [20, '20 O'],
+                    [60, '60 O'],
+                    [128, '128 O'],
+                    [180, '180 O'],
                   ]}
                   onChange={(v) => setChunkSize(Number(v))}
                 />
                 <SelectRow
-                  label="Print speed"
+                  label="Vitesse d'impression"
                   value={printSpeedMm}
                   options={[
-                    [10, '10 mm/s (safest)'],
+                    [10, '10 mm/s (Plus sûr)'],
                     [12.5, '12.5 mm/s'],
                     [15, '15 mm/s'],
                     [20, '20 mm/s'],
-                    [25, '25 mm/s (fastest)'],
+                    [25, '25 mm/s (Plus rapide)'],
                   ]}
                   onChange={(v) => setPrintSpeedMm(Number(v))}
                 />
                 <SelectRow
-                  label="Max job size"
+                  label="Taille max de tâche"
                   value={maxJobBytes}
                   options={[
-                    [30000, '30 KB'],
-                    [38000, '38 KB'],
-                    [44000, '44 KB (measured)'],
-                    [50000, '50 KB'],
-                    [200000, 'No limit'],
+                    [30000, '30 Ko'],
+                    [38000, '38 Ko'],
+                    [44000, '44 Ko (Mesuré)'],
+                    [50000, '50 Ko'],
+                    [200000, 'Sans limite'],
                   ]}
                   onChange={(v) => setMaxJobBytes(Number(v))}
                 />
                 <SelectRow
-                  label="Lines per block"
+                  label="Lignes par bloc"
                   value={maxBlockLines}
                   options={[
-                    [65535, 'No split'],
+                    [65535, 'Ne pas diviser'],
                     [1024, '1024'],
                     [512, '512'],
                     [256, '256'],
                   ]}
                   onChange={(v) => setMaxBlockLines(Number(v))}
                 />
-                <Row label="Only Phomemo devices" onClick={() => connect(true)} />
+                <Row label="Uniquement appareils Phomemo" onClick={() => connect(true)} />
               </div>
               <p className="hint mono">
-                {geometry.widthPx} dots · {geometry.widthBytes} bytes/line
-                {tone ? ` · card mean ${tone.mean.toFixed(0)}` : ''}
+                {geometry.widthPx} points · {geometry.widthBytes} octets/ligne
+                {tone ? ` · moyenne carte ${tone.mean.toFixed(0)}` : ''}
                 {solved
-                  ? ` · B${solved.brightness > 0 ? '+' : ''}${solved.brightness} · ink ${(solved.predictedInk * 100).toFixed(0)}%`
+                  ? ` · L${solved.brightness > 0 ? '+' : ''}${solved.brightness} · encre ${(solved.predictedInk * 100).toFixed(0)}%`
                   : ''}
               </p>
               {diag.length > 0 && <pre>{diag.join('\n')}</pre>}
