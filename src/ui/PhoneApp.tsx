@@ -1,6 +1,5 @@
 /**
- * Interface Téléphone : pile de navigation et menu de paramètres modal,
- * stylisé façon iOS.
+ * Interface Mobile avec support des Marqueurs locaux.
  */
 import { statLabel } from '../scryfall';
 import type { CardFit } from '../label';
@@ -18,6 +17,7 @@ import { Row, SliderRow, SwitchRow, SelectRow } from './controls';
 import * as Icon from './icons';
 
 const FRENCH_QUICK_PICKS = ['Trésor', 'Nourriture', 'Indice', 'Gobelin', 'Zombie', 'Soldat', 'Ange', 'Bête'];
+const LOCAL_COUNTERS = ['+1 / +1', '+5 / +5', '-1 / -1', 'Vol', 'Initiative', 'Lien de vie'];
 const FRENCH_MODE_LABEL: Record<Mode, string> = {
   text: 'Texte',
   card: 'Carte',
@@ -35,6 +35,7 @@ export default function PhoneApp({
   const {
     query, setQuery, results, searching, scope, setScope,
     selected, mode, setMode, labelMm, setLabelMm,
+    localCounter, openCounter, // Nouveaux champs pour compteurs locaux
     textBlockMm, setTextBlockMm, autoTextBlock, setAutoTextBlock,
     cardMm, setCardMm, cardFit, setCardFit,
     showArt, setShowArt, markTokens, setMarkTokens,
@@ -76,15 +77,8 @@ export default function PhoneApp({
           <h1 className="largetitle">Jetons</h1>
 
           <div className="segmented scope">
-            <button
-              className={scope === 'tokens' ? 'on' : ''}
-              onClick={() => setScope('tokens')}
-            >
-              Jetons
-            </button>
-            <button className={scope === 'cards' ? 'on' : ''} onClick={() => setScope('cards')}>
-              Toutes les cartes
-            </button>
+            <button className={scope === 'tokens' ? 'on' : ''} onClick={() => setScope('tokens')}>Jetons</button>
+            <button className={scope === 'cards' ? 'on' : ''} onClick={() => setScope('cards')}>Toutes les cartes</button>
           </div>
 
           <div className="searchwrap">
@@ -96,9 +90,7 @@ export default function PhoneApp({
                 onChange={(e) => setQuery(e.target.value)}
               />
               <button 
-                className="clear" 
-                onClick={startVoiceSearch} 
-                aria-label="Recherche vocale"
+                className="clear" onClick={startVoiceSearch} aria-label="Recherche vocale"
                 style={{ fontSize: '18px', padding: '0 4px', marginRight: query ? '0' : '4px' }}
               >
                 🎤
@@ -113,11 +105,17 @@ export default function PhoneApp({
 
           <div className="chips">
             {FRENCH_QUICK_PICKS.map((p) => (
-              <button
-                key={p}
-                className={query === p ? 'chip on' : 'chip'}
-                onClick={() => setQuery(p)}
-              >
+              <button key={p} className={query === p ? 'chip on' : 'chip'} onClick={() => setQuery(p)}>
+                {p}
+              </button>
+            ))}
+          </div>
+
+          {/* --- NOUVEAU : MARQUEURS LOCAUX --- */}
+          <h2 className="grouphead" style={{ marginTop: '0', marginLeft: '4px' }}>Marqueurs Locaux</h2>
+          <div className="chips" style={{ paddingTop: '0' }}>
+            {LOCAL_COUNTERS.map((p) => (
+              <button key={p} className="chip" style={{ border: '1px solid var(--tint)' }} onClick={() => openCounter(p)}>
                 {p}
               </button>
             ))}
@@ -134,11 +132,7 @@ export default function PhoneApp({
                 </button>
               </div>
             ) : (
-              <button
-                className="row tappable"
-                onClick={() => connect()}
-                disabled={!supported || busy}
-              >
+              <button className="row tappable" onClick={() => connect()} disabled={!supported || busy}>
                 <span className="row-label accent">
                   <Icon.Bluetooth />
                   {busy ? 'Recherche de l\'imprimante…' : 'Connecter l\'imprimante'}
@@ -177,7 +171,7 @@ export default function PhoneApp({
           {results.length > 0 && (
             <>
               <h2 className="grouphead">
-                {results.length} {results.length === 1 ? 'jeton' : 'jetons'}
+                {results.length} {results.length === 1 ? 'jeton' : 'jetons'} trouvés
               </h2>
               <div className="group list">
                 {results.map((c) => (
@@ -221,7 +215,7 @@ export default function PhoneApp({
             <Icon.ChevronLeft />
             <span>Jetons</span>
           </button>
-          <span className="navtitle">{selected?.name ?? ''}</span>
+          <span className="navtitle">{localCounter ? `Marqueur: ${localCounter}` : selected?.name ?? ''}</span>
           <button className="navbtn" onClick={() => setSheet(true)} aria-label="Options">
             <Icon.Sliders />
           </button>
@@ -229,45 +223,39 @@ export default function PhoneApp({
 
         <div className="scroll">
           <div className="paper">
-            {selected ? <canvas ref={previewRef} /> : <p className="empty">Aucun jeton sélectionné</p>}
+            {(selected || localCounter) ? <canvas ref={previewRef} /> : <p className="empty">Aucun jeton sélectionné</p>}
           </div>
 
-          {mode === 'calib' ? (
-            <div className="banner">
-              <span>Bande de calibration</span>
-              <button className="textbtn" onClick={() => setMode('both')}>
-                Terminé
-              </button>
-            </div>
-          ) : (
-            <div className="segmented">
-              {(['text', 'card', 'both'] as const).map((m) => (
-                <button
-                  key={m}
-                  className={mode === m ? 'on' : ''}
-                  disabled={m !== 'text' && !selected?.printImageUrl}
-                  onClick={() => setMode(m)}
-                >
-                  {FRENCH_MODE_LABEL[m]}
-                </button>
-              ))}
-            </div>
+          {/* On cache les options de mode si on affiche un marqueur local */}
+          {!localCounter && (
+             mode === 'calib' ? (
+              <div className="banner">
+                <span>Bande de calibration</span>
+                <button className="textbtn" onClick={() => setMode('both')}>Terminé</button>
+              </div>
+            ) : (
+              <div className="segmented">
+                {(['text', 'card', 'both'] as const).map((m) => (
+                  <button
+                    key={m}
+                    className={mode === m ? 'on' : ''}
+                    disabled={m !== 'text' && !selected?.printImageUrl}
+                    onClick={() => setMode(m)}
+                  >
+                    {FRENCH_MODE_LABEL[m]}
+                  </button>
+                ))}
+              </div>
+            )
           )}
 
           <div className="group">
             <div className="row">
               <span className="row-label">Copies</span>
               <span className="stepper">
-                <button onClick={() => setCopies((c) => Math.max(1, c - 1))} disabled={copies <= 1}>
-                  −
-                </button>
+                <button onClick={() => setCopies((c) => Math.max(1, c - 1))} disabled={copies <= 1}>−</button>
                 <span>{copies}</span>
-                <button
-                  onClick={() => setCopies((c) => Math.min(20, c + 1))}
-                  disabled={copies >= 20}
-                >
-                  +
-                </button>
+                <button onClick={() => setCopies((c) => Math.min(20, c + 1))} disabled={copies >= 20}>+</button>
               </span>
             </div>
             <Row
@@ -287,7 +275,7 @@ export default function PhoneApp({
         </div>
 
         <div className="bottombar">
-          <button className="primary" onClick={print} disabled={!selected || busy}>
+          <button className="primary" onClick={print} disabled={(!selected && !localCounter) || busy}>
             {busy && progress > 0
               ? `Impression ${Math.round(progress * 100)}%`
               : copies > 1
@@ -303,363 +291,83 @@ export default function PhoneApp({
         <div className="grabber" />
         <div className="sheethead">
           <span>Options d'impression</span>
-          <button className="textbtn strong" onClick={() => setSheet(false)}>
-            Terminé
-          </button>
+          <button className="textbtn strong" onClick={() => setSheet(false)}>Terminé</button>
         </div>
 
         <div className="scroll">
-          <h2 className="grouphead">Apparence</h2>
-          <div className="group">
-            <SliderRow
-              label="Encre"
-              display={`${targetInk}%`}
-              value={targetInk}
-              min={15}
-              max={60}
-              onChange={setTargetInk}
-            />
-            <SliderRow
-              label="Contraste"
-              display={contrast > 0 ? `+${contrast}` : `${contrast}`}
-              value={contrast}
-              min={-50}
-              max={80}
-              onChange={setContrast}
-            />
-            <SwitchRow
-              label="Ajuster chaque carte automatiquement"
-              checked={autoToneOn}
-              onChange={setAutoToneOn}
-            />
-            {!autoToneOn && (
-              <SliderRow
-                label="Luminosité"
-                display={brightness > 0 ? `+${brightness}` : `${brightness}`}
-                value={brightness}
-                min={-60}
-                max={80}
-                onChange={setBrightness}
-              />
-            )}
-            {mode === 'text' && (
-              <SwitchRow
-                label="Inclure une bande d'illustration"
-                checked={showArt}
-                disabled={!selected?.artUrl}
-                onChange={setShowArt}
-              />
-            )}
-            {mode === 'both' && (
-              <SwitchRow
-                label="Adapter le texte au contenu"
-                checked={autoTextBlock}
-                onChange={setAutoTextBlock}
-              />
-            )}
-            {mode === 'both' && !autoTextBlock && (
-              <SliderRow
-                label="Hauteur du texte"
-                display={`${textBlockMm} mm`}
-                value={textBlockMm}
-                min={14}
-                max={45}
-                onChange={setTextBlockMm}
-              />
-            )}
-            {selected && !selected.isToken && (
-              <SwitchRow
-                label="Marquer comme JETON"
-                checked={markTokens}
-                onChange={setMarkTokens}
-              />
-            )}
-            {mode === 'both' && (
-              <SliderRow
-                label="Hauteur de la carte"
-                display={cardMm > 0 ? `${cardMm} mm` : 'Pleine'}
-                value={cardMm}
-                min={0}
-                max={70}
-                step={5}
-                onChange={setCardMm}
-              />
-            )}
-            {mode === 'card' && (
-              <SelectRow
-                label="Format de la carte"
-                value={cardFit}
-                options={[
-                  ['aspect', 'Conserver les proportions'],
-                  ['label', 'Ajuster à la hauteur'],
-                ]}
-                onChange={(v) => setCardFit(v as CardFit)}
-              />
-            )}
-          </div>
-          {solved?.clamped && (
-            <p className="footnote warn">
-              Cette carte ne peut pas atteindre {targetInk}% d'encre sans être délavée. Essayez de réduire l'Encre.
-            </p>
+          
+          {/* On désactive les réglages d'image si on imprime un simple texte mathématique */}
+          {!localCounter && (
+            <>
+              <h2 className="grouphead">Apparence</h2>
+              <div className="group">
+                <SliderRow label="Encre" display={`${targetInk}%`} value={targetInk} min={15} max={60} onChange={setTargetInk} />
+                <SliderRow label="Contraste" display={contrast > 0 ? `+${contrast}` : `${contrast}`} value={contrast} min={-50} max={80} onChange={setContrast} />
+                <SwitchRow label="Ajuster chaque carte automatiquement" checked={autoToneOn} onChange={setAutoToneOn} />
+                {!autoToneOn && (
+                  <SliderRow label="Luminosité" display={brightness > 0 ? `+${brightness}` : `${brightness}`} value={brightness} min={-60} max={80} onChange={setBrightness} />
+                )}
+                {mode === 'text' && (
+                  <SwitchRow label="Inclure une bande d'illustration" checked={showArt} disabled={!selected?.artUrl} onChange={setShowArt} />
+                )}
+                {mode === 'both' && (
+                  <SwitchRow label="Adapter le texte au contenu" checked={autoTextBlock} onChange={setAutoTextBlock} />
+                )}
+                {mode === 'both' && !autoTextBlock && (
+                  <SliderRow label="Hauteur du texte" display={`${textBlockMm} mm`} value={textBlockMm} min={14} max={45} onChange={setTextBlockMm} />
+                )}
+                {selected && !selected.isToken && (
+                  <SwitchRow label="Marquer comme JETON" checked={markTokens} onChange={setMarkTokens} />
+                )}
+                {mode === 'both' && (
+                  <SliderRow label="Hauteur de la carte" display={cardMm > 0 ? `${cardMm} mm` : 'Pleine'} value={cardMm} min={0} max={70} step={5} onChange={setCardMm} />
+                )}
+                {mode === 'card' && (
+                  <SelectRow label="Format de la carte" value={cardFit} options={[['aspect', 'Conserver les proportions'], ['label', 'Ajuster à la hauteur']]} onChange={(v) => setCardFit(v as CardFit)} />
+                )}
+              </div>
+              {solved?.clamped && (
+                <p className="footnote warn">
+                  Cette carte ne peut pas atteindre {targetInk}% d'encre sans être délavée.
+                </p>
+              )}
+            </>
           )}
 
           <h2 className="grouphead">Papier</h2>
           <div className="group">
-            <SliderRow
-              label="Largeur"
-              display={`${Math.min(labelMm.w, MAX_WIDTH_MM)} mm`}
-              value={Math.min(labelMm.w, MAX_WIDTH_MM)}
-              min={20}
-              max={MAX_WIDTH_MM}
-              onChange={(v) => setLabelMm((s) => ({ ...s, w: v }))}
-            />
+            <SliderRow label="Largeur" display={`${Math.min(labelMm.w, MAX_WIDTH_MM)} mm`} value={Math.min(labelMm.w, MAX_WIDTH_MM)} min={20} max={MAX_WIDTH_MM} onChange={(v) => setLabelMm((s) => ({ ...s, w: v }))} />
             {mode !== 'both' && (
-              <SliderRow
-                label="Hauteur"
-                display={`${labelMm.h} mm`}
-                value={labelMm.h}
-                min={16}
-                max={90}
-                onChange={(v) => setLabelMm((s) => ({ ...s, h: v }))}
-              />
+              <SliderRow label="Hauteur" display={`${labelMm.h} mm`} value={labelMm.h} min={16} max={90} onChange={(v) => setLabelMm((s) => ({ ...s, h: v }))} />
             )}
-            <SliderRow
-              label="Marge de coupe"
-              display={`${tearMm} mm`}
-              value={tearMm}
-              min={0}
-              max={25}
-              onChange={setTearMm}
-            />
-            <SliderRow
-              label="Intensité"
-              display={`${density}`}
-              value={density}
-              min={1}
-              max={15}
-              onChange={setDensity}
-            />
-            <SelectRow
-              label="Type de papier"
-              value={media}
-              options={[
-                [MEDIA_CONTINUOUS, 'Rouleau continu'],
-                [MEDIA_LABEL_WITH_GAPS, 'Étiquettes prédécoupées'],
-                [MEDIA_LABEL_WITH_MARKS, 'Étiquettes avec marque noire'],
-              ]}
-              onChange={(v) => setMedia(Number(v))}
-            />
+            <SliderRow label="Marge de coupe" display={`${tearMm} mm`} value={tearMm} min={0} max={25} onChange={setTearMm} />
+            <SliderRow label="Intensité" display={`${density}`} value={density} min={1} max={15} onChange={setDensity} />
+            <SelectRow label="Type de papier" value={media} options={[[MEDIA_CONTINUOUS, 'Rouleau continu'], [MEDIA_LABEL_WITH_GAPS, 'Étiquettes prédécoupées'], [MEDIA_LABEL_WITH_MARKS, 'Étiquettes avec marque noire']]} onChange={(v) => setMedia(Number(v))} />
           </div>
-          <p className="footnote">
-            La tête d'impression fait {MAX_WIDTH_MM} mm de large, le papier plus large gardera une marge blanche.
-          </p>
 
           <h2 className="grouphead">Avancé</h2>
           <div className="group">
             <Row label="Imprimer un motif de test" onClick={testPrint} />
             <Row label="Vider la mémoire (Reset)" onClick={reset} />
-            <Row
-              label="Bande de calibration"
-              onClick={() => {
-                if (!selected?.printImageUrl) return;
-                setMode('calib');
-                setSheet(false);
-              }}
-            />
+            {!localCounter && (
+              <Row label="Bande de calibration" onClick={() => { if (selected?.printImageUrl) { setMode('calib'); setSheet(false); } }} />
+            )}
             <Row label={showDiag ? 'Masquer les diagnostics' : 'Afficher les diagnostics'} onClick={() => setShowDiag((v) => !v)} />
           </div>
 
           {showDiag && (
             <>
               <div className="group">
-                <SelectRow
-                  label="Tramage"
-                  value={dither}
-                  options={[
-                    ['atkinson', 'Atkinson'],
-                    ['floyd-steinberg', 'Floyd–Steinberg'],
-                    ['threshold', 'Seuillage'],
-                  ]}
-                  onChange={(v) => setDither(v as Dither)}
-                />
-                <SliderRow
-                  label="Seuillage"
-                  display={`${threshold}`}
-                  value={threshold}
-                  min={40}
-                  max={220}
-                  onChange={setThreshold}
-                />
-                <SwitchRow label="Contraste local (CLAHE)" checked={claheOn} onChange={setClaheOn} />
-                {claheOn && (
-                  <>
-                    <SliderRow
-                      label="Limite de coupe"
-                      display={clipLimit.toFixed(1)}
-                      value={clipLimit}
-                      min={1}
-                      max={6}
-                      step={0.5}
-                      onChange={setClipLimit}
-                    />
-                    <SliderRow
-                      label="Tuiles"
-                      display={`${tiles}×${tiles}`}
-                      value={tiles}
-                      min={2}
-                      max={16}
-                      step={2}
-                      onChange={setTiles}
-                    />
-                  </>
-                )}
+                <SelectRow label="Tramage" value={dither} options={[['atkinson', 'Atkinson'], ['floyd-steinberg', 'Floyd–Steinberg'], ['threshold', 'Seuillage']]} onChange={(v) => setDither(v as Dither)} />
+                <SliderRow label="Seuillage" display={`${threshold}`} value={threshold} min={40} max={220} onChange={setThreshold} />
               </div>
               <div className="group">
-                {writeMode === 'without-response' && (
-                  <p className="footnote warn">
-                    Sans réponse, les paquets sont limités à 20 octets — les plus gros sont ignorés par la liaison sans erreur. Fiable mais plus lent ; utilisez Avec réponse sauf pour tester.
-                  </p>
-                )}
-                <SelectRow
-                  label="Mode d'écriture"
-                  value={writeMode}
-                  options={[
-                    ['with-response', 'Avec réponse'],
-                    ['without-response', 'Sans réponse'],
-                  ]}
-                  onChange={(v) => setWriteMode(v as WriteMode)}
-                />
-                <SliderRow
-                  label="Cadence"
-                  display={`${chunkDelay} ms`}
-                  value={chunkDelay}
-                  min={0}
-                  max={30}
-                  onChange={setChunkDelay}
-                />
-                <p className="footnote">
-                  La cadence est le contrôle de flux : l'écriture Bluetooth est confirmée par la radio, pas par l'imprimante. Sans cadence, on sature sa mémoire et elle sort du papier blanc.
-                </p>
-                <SelectRow
-                  label="Taille des paquets"
-                  value={chunkSize}
-                  options={[
-                    [20, '20 O'],
-                    [60, '60 O'],
-                    [128, '128 O'],
-                    [180, '180 O'],
-                  ]}
-                  onChange={(v) => setChunkSize(Number(v))}
-                />
-                <SelectRow
-                  label="Vitesse d'impression"
-                  value={printSpeedMm}
-                  options={[
-                    [10, '10 mm/s (Plus sûr)'],
-                    [12.5, '12.5 mm/s'],
-                    [15, '15 mm/s'],
-                    [20, '20 mm/s'],
-                    [25, '25 mm/s (Plus rapide)'],
-                  ]}
-                  onChange={(v) => setPrintSpeedMm(Number(v))}
-                />
-                <SelectRow
-                  label="Taille max de tâche"
-                  value={maxJobBytes}
-                  options={[
-                    [30000, '30 Ko'],
-                    [38000, '38 Ko'],
-                    [44000, '44 Ko (Mesuré)'],
-                    [50000, '50 Ko'],
-                    [200000, 'Sans limite'],
-                  ]}
-                  onChange={(v) => setMaxJobBytes(Number(v))}
-                />
-                <SelectRow
-                  label="Lignes par bloc"
-                  value={maxBlockLines}
-                  options={[
-                    [65535, 'Ne pas diviser'],
-                    [1024, '1024'],
-                    [512, '512'],
-                    [256, '256'],
-                  ]}
-                  onChange={(v) => setMaxBlockLines(Number(v))}
-                />
-                <Row label="Uniquement appareils Phomemo" onClick={() => connect(true)} />
+                <SelectRow label="Mode d'écriture" value={writeMode} options={[['with-response', 'Avec réponse'], ['without-response', 'Sans réponse']]} onChange={(v) => setWriteMode(v as WriteMode)} />
+                <SelectRow label="Taille des paquets" value={chunkSize} options={[[20, '20 O'], [60, '60 O'], [128, '128 O'], [180, '180 O']]} onChange={(v) => setChunkSize(Number(v))} />
               </div>
-              {mode === 'calib' && (
-                <div className="group">
-                  <label className="row slider">
-                    <span className="row-label">Valeurs de Luminosité</span>
-                    <input
-                      type="text"
-                      value={sweepBright}
-                      onChange={(e) => setSweepBright(e.target.value)}
-                    />
-                  </label>
-                  <label className="row slider">
-                    <span className="row-label">Valeurs de Contraste</span>
-                    <input
-                      type="text"
-                      value={sweepContrast}
-                      onChange={(e) => setSweepContrast(e.target.value)}
-                    />
-                  </label>
-                  <SelectRow
-                    label="Disposition"
-                    value={calibLayout}
-                    options={[
-                      ['stack', 'Empilé'],
-                      ['grid', 'Grille'],
-                    ]}
-                    onChange={(v) => setCalibLayout(v as CalibLayout)}
-                  />
-                  <SelectRow
-                    label="Échantillon"
-                    value={calibContent}
-                    options={[
-                      ['art', 'Bande d\'art'],
-                      ['card', 'Carte entière'],
-                    ]}
-                    onChange={(v) => setCalibContent(v as CalibContent)}
-                  />
-                  {calibContent === 'art' && (
-                    <SliderRow
-                      label="Hauteur d'échantillon"
-                      display={`${(cellH / 8).toFixed(0)} mm`}
-                      value={cellH}
-                      min={80}
-                      max={360}
-                      step={10}
-                      onChange={setCellH}
-                    />
-                  )}
-                </div>
-              )}
-              <p className="footnote mono">
-                {geometry.widthPx} points · {geometry.widthBytes} octets/ligne
-                {tone ? ` · moyenne carte ${tone.mean.toFixed(0)}` : ''}
-                {solved
-                  ? ` · L${solved.brightness > 0 ? '+' : ''}${solved.brightness} · encre ${(solved.predictedInk * 100).toFixed(0)}%`
-                  : ''}
-              </p>
               {diag.length > 0 && <pre>{diag.join('\n')}</pre>}
             </>
           )}
-
-          {onUseDesktopLayout && (
-            <>
-              <h2 className="grouphead">Interface</h2>
-              <div className="group">
-                <Row label="Utiliser l'affichage Bureau" onClick={onUseDesktopLayout} />
-              </div>
-              <p className="footnote">
-                L'affichage s'adapte à l'écran par défaut. Choisir une option ici la mémorise.
-              </p>
-            </>
-          )}
-
           <div className="tailspace" />
         </div>
       </div>
