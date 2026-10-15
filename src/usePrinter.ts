@@ -296,7 +296,31 @@ export function usePrinter() {
     const t = setTimeout(async () => {
       setSearching(true);
       try {
-        setResults(await searchCards(query, { scope, signal: ac.signal }));
+        // --- DÉBUT DE LA TRADUCTION INVISIBLE ---
+        let normalizedText = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        let cleanWord = normalizedText.replace(/\b(imprime|un|une|le|la|les|des|de|jeton)\b/g, '').trim();
+        cleanWord = cleanWord.replace(/\s+/g, ' ');
+
+        const tokenDictionary: Record<string, string> = {
+          "tresor": "treasure", "elfe": "elf", "nourriture": "food", "orque": "orc",
+          "armee d orques": "orc army", "armee d'orques": "orc army", "gobelin": "goblin", "bete": "beast",
+          "humain": "human", "soldat": "soldier", "zombie": "zombie", "esprit": "spirit",
+          "dinosaure": "dinosaur", "plante": "plant", "chevalier": "knight",
+          "ange": "angel", "dragon": "dragon", "vampire": "vampire",
+          "carte": "map", "indice": "clue", "sang": "blood", "copie": "copy",
+          "golem": "golem", "construction": "construct", "oiseau": "bird"
+        };
+
+        let translatedQuery = query;
+        if (tokenDictionary[cleanWord]) {
+          translatedQuery = tokenDictionary[cleanWord];
+        } else if (cleanWord) {
+          const words = cleanWord.split(' ');
+          translatedQuery = words.map(w => tokenDictionary[w] || w).join(' ');
+        }
+        // --- FIN DE LA TRADUCTION INVISIBLE ---
+
+        setResults(await searchCards(translatedQuery, { scope, signal: ac.signal }));
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
           setStatus({ kind: 'err', msg: (e as Error).message });
