@@ -36,7 +36,7 @@ export default function DesktopApp({
   const {
     query, setQuery, results, searching, scope, setScope,
     selected, setSelected, mode, setMode, labelMm, setLabelMm,
-    localCounter, openCounter, // Nouveaux champs locaux
+    localCounter, openCounter,
     textBlockMm, setTextBlockMm, autoTextBlock, setAutoTextBlock,
     cardMm, setCardMm, cardFit, setCardFit,
     showArt, setShowArt, markTokens, setMarkTokens,
@@ -130,6 +130,12 @@ export default function DesktopApp({
         </div>
       )}
 
+      {!supported && (
+        <p className="banner err">
+          Ce navigateur ne peut pas accéder au Bluetooth. Chrome et Edge fonctionnent nativement.
+        </p>
+      )}
+
       <div className="cols">
         <section className="pane results-pane">
           <div className="segmented scope">
@@ -170,7 +176,7 @@ export default function DesktopApp({
 
           <div className="dlist" ref={listRef}>
             {results.map((c) => (
-              <button key={c.id} className={`drow${selected?.id === c.id ? ' sel' : ''}`} onClick={() => {setSelected(c); api.openCounter("");}}>
+              <button key={c.id} className={`drow${selected?.id === c.id ? ' sel' : ''}`} onClick={() => {setSelected(c); openCounter("");}}>
                 {c.imageUrl ? <img src={c.imageUrl} alt="" loading="lazy" /> : <span className="thumb-none" />}
                 <span className="drow-text">
                   <span className="drow-name">{c.name}</span>
@@ -227,7 +233,6 @@ export default function DesktopApp({
         </section>
 
         <aside className="pane settings-pane">
-          
           {!localCounter && (
             <>
               <h2 className="grouphead">Apparence</h2>
@@ -235,6 +240,27 @@ export default function DesktopApp({
                 <SliderRow label="Encre" display={`${targetInk}%`} value={targetInk} min={15} max={60} onChange={setTargetInk} />
                 <SliderRow label="Contraste" display={contrast > 0 ? `+${contrast}` : `${contrast}`} value={contrast} min={-50} max={80} onChange={setContrast} />
                 <SwitchRow label="Ajuster automatiquement" checked={autoToneOn} onChange={setAutoToneOn} />
+                {!autoToneOn && (
+                  <SliderRow label="Luminosité" display={brightness > 0 ? `+${brightness}` : `${brightness}`} value={brightness} min={-60} max={80} onChange={setBrightness} />
+                )}
+                {mode === 'text' && (
+                  <SwitchRow label="Inclure une bande d'illustration" checked={showArt} disabled={!selected?.artUrl} onChange={setShowArt} />
+                )}
+                {mode === 'both' && (
+                  <SwitchRow label="Adapter le texte au contenu" checked={autoTextBlock} onChange={setAutoTextBlock} />
+                )}
+                {mode === 'both' && !autoTextBlock && (
+                  <SliderRow label="Hauteur du texte" display={`${textBlockMm} mm`} value={textBlockMm} min={14} max={45} onChange={setTextBlockMm} />
+                )}
+                {selected && !selected.isToken && (
+                  <SwitchRow label="Marquer comme JETON" checked={markTokens} onChange={setMarkTokens} />
+                )}
+                {mode === 'both' && (
+                  <SliderRow label="Hauteur de la carte" display={cardMm > 0 ? `${cardMm} mm` : 'Pleine'} value={cardMm} min={0} max={70} step={5} onChange={setCardMm} />
+                )}
+                {mode === 'card' && (
+                  <SelectRow label="Format de la carte" value={cardFit} options={[['aspect', 'Conserver les proportions'], ['label', 'Ajuster à la hauteur']]} onChange={(v) => setCardFit(v as CardFit)} />
+                )}
               </div>
             </>
           )}
@@ -242,15 +268,74 @@ export default function DesktopApp({
           <h2 className="grouphead">Papier</h2>
           <div className="group">
             <SliderRow label="Largeur" display={`${Math.min(labelMm.w, MAX_WIDTH_MM)} mm`} value={Math.min(labelMm.w, MAX_WIDTH_MM)} min={20} max={MAX_WIDTH_MM} onChange={(v) => setLabelMm((s) => ({ ...s, w: v }))} />
+            {(!localCounter && mode !== 'both') && (
+              <SliderRow label="Hauteur" display={`${labelMm.h} mm`} value={labelMm.h} min={16} max={90} onChange={(v) => setLabelMm((s) => ({ ...s, h: v }))} />
+            )}
+            <SliderRow label="Marge de coupe" display={`${tearMm} mm`} value={tearMm} min={0} max={25} onChange={setTearMm} />
             <SliderRow label="Intensité" display={`${density}`} value={density} min={1} max={15} onChange={setDensity} />
+            <SelectRow label="Type de papier" value={media} options={[[MEDIA_CONTINUOUS, 'Rouleau continu'], [MEDIA_LABEL_WITH_GAPS, 'Étiquettes prédécoupées'], [MEDIA_LABEL_WITH_MARKS, 'Étiquettes avec marque noire']]} onChange={(v) => setMedia(Number(v))} />
           </div>
 
           <h2 className="grouphead">Avancé</h2>
           <div className="group">
             <Row label="Imprimer un motif de test" onClick={testPrint} />
             <Row label="Vider la mémoire (Reset)" onClick={reset} />
+            {!localCounter && (
+              <Row label="Bande de calibration" onClick={() => { if (selected?.printImageUrl) { setMode('calib'); } }} />
+            )}
             <Row label={showDiag ? 'Masquer les diagnostics' : 'Afficher les diagnostics'} onClick={() => setShowDiag(!showDiag)} />
           </div>
+
+          {(!localCounter && mode === 'calib') && (
+            <div className="group">
+              <label className="row slider">
+                <span className="row-label">Luminosités</span>
+                <input type="text" value={sweepBright} onChange={(e) => setSweepBright(e.target.value)} />
+              </label>
+              <label className="row slider">
+                <span className="row-label">Contrastes</span>
+                <input type="text" value={sweepContrast} onChange={(e) => setSweepContrast(e.target.value)} />
+              </label>
+              <SelectRow label="Disposition" value={calibLayout} options={[['stack', 'Empilé'], ['grid', 'Grille']]} onChange={(v) => setCalibLayout(v as CalibLayout)} />
+              <SelectRow label="Échantillon" value={calibContent} options={[['art', 'Bande d\'art'], ['card', 'Carte entière']]} onChange={(v) => setCalibContent(v as CalibContent)} />
+              {calibContent === 'art' && (
+                <SliderRow label="Hauteur" display={`${(cellH / 8).toFixed(0)} mm`} value={cellH} min={80} max={360} step={10} onChange={setCellH} />
+              )}
+            </div>
+          )}
+
+          {showDiag && (
+            <>
+              {!localCounter && (
+                <div className="group">
+                  <SelectRow label="Tramage" value={dither} options={[['atkinson', 'Atkinson'], ['floyd-steinberg', 'Floyd–Steinberg'], ['threshold', 'Seuillage']]} onChange={(v) => setDither(v as Dither)} />
+                  <SliderRow label="Seuillage" display={`${threshold}`} value={threshold} min={40} max={220} onChange={setThreshold} />
+                  <SwitchRow label="Contraste local (CLAHE)" checked={claheOn} onChange={setClaheOn} />
+                  {claheOn && (
+                    <>
+                      <SliderRow label="Limite de coupe" display={clipLimit.toFixed(1)} value={clipLimit} min={1} max={6} step={0.5} onChange={setClipLimit} />
+                      <SliderRow label="Tuiles" display={`${tiles}×${tiles}`} value={tiles} min={2} max={16} step={2} onChange={setTiles} />
+                    </>
+                  )}
+                </div>
+              )}
+              <div className="group">
+                <SelectRow label="Mode d'écriture" value={writeMode} options={[['with-response', 'Avec réponse'], ['without-response', 'Sans réponse']]} onChange={(v) => setWriteMode(v as WriteMode)} />
+                <SliderRow label="Cadence" display={`${chunkDelay} ms`} value={chunkDelay} min={0} max={30} onChange={setChunkDelay} />
+                <SelectRow label="Taille des paquets" value={chunkSize} options={[[20, '20 O'], [60, '60 O'], [128, '128 O'], [180, '180 O']]} onChange={(v) => setChunkSize(Number(v))} />
+                <SelectRow label="Vitesse d'impression" value={printSpeedMm} options={[[10, '10 mm/s'], [12.5, '12.5 mm/s'], [15, '15 mm/s'], [20, '20 mm/s'], [25, '25 mm/s']]} onChange={(v) => setPrintSpeedMm(Number(v))} />
+                <SelectRow label="Taille max de tâche" value={maxJobBytes} options={[[30000, '30 Ko'], [38000, '38 Ko'], [44000, '44 Ko'], [50000, '50 Ko'], [200000, 'Sans limite']]} onChange={(v) => setMaxJobBytes(Number(v))} />
+                <SelectRow label="Lignes par bloc" value={maxBlockLines} options={[[65535, 'Ne pas diviser'], [1024, '1024'], [512, '512'], [256, '256']]} onChange={(v) => setMaxBlockLines(Number(v))} />
+                <Row label="Uniquement appareils Phomemo" onClick={() => connect(true)} />
+              </div>
+              <p className="hint mono">
+                {geometry.widthPx} points · {geometry.widthBytes} octets/ligne
+                {(!localCounter && tone) ? ` · moyenne carte ${tone.mean.toFixed(0)}` : ''}
+                {(!localCounter && solved) ? ` · L${solved.brightness > 0 ? '+' : ''}${solved.brightness} · encre ${(solved.predictedInk * 100).toFixed(0)}%` : ''}
+              </p>
+              {diag.length > 0 && <pre>{diag.join('\n')}</pre>}
+            </>
+          )}
         </aside>
       </div>
     </div>
