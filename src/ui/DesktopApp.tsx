@@ -218,6 +218,11 @@ export default function DesktopApp({
           <div className="printbar">
             <span className="size">
               {printSize ? `${printSize.w.toFixed(0)} × ${printSize.h.toFixed(0)} mm` : '—'}
+              {splitPlan && splitPlan.parts > 1 && (
+                <span className="split" title="Trop long pour une seule tâche, sera envoyé en plusieurs parties">
+                  {' '}· {splitPlan.parts} parties
+                </span>
+              )}
             </span>
             <div className="spacer" />
             <span className="stepper">
