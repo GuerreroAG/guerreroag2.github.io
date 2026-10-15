@@ -1,6 +1,6 @@
 /**
- * Phone interface: a navigation stack with a modal settings sheet, styled to
- * match iOS. Used on touch devices and inside the native shell.
+ * Interface Téléphone : pile de navigation et menu de paramètres modal,
+ * stylisé façon iOS.
  */
 import { statLabel } from '../scryfall';
 import type { CardFit } from '../label';
@@ -13,9 +13,17 @@ import {
   type WriteMode,
 } from '../printer';
 import type { CalibLayout, CalibContent } from '../calibration';
-import { MODE_LABEL, QUICK_PICKS, type PrinterApi } from '../usePrinter';
+import { type PrinterApi, type Mode } from '../usePrinter';
 import { Row, SliderRow, SwitchRow, SelectRow } from './controls';
 import * as Icon from './icons';
+
+const FRENCH_QUICK_PICKS = ['Trésor', 'Nourriture', 'Indice', 'Gobelin', 'Zombie', 'Soldat', 'Ange', 'Bête'];
+const FRENCH_MODE_LABEL: Record<Mode, string> = {
+  text: 'Texte',
+  card: 'Carte',
+  both: 'Carte + Texte',
+  calib: 'Calibration',
+};
 
 export default function PhoneApp({
   api,
@@ -48,22 +56,34 @@ export default function PhoneApp({
     screen, setScreen, sheet, setSheet, open,
   } = api;
 
+  const startVoiceSearch = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.onresult = (e: any) => setQuery(e.results[0][0].transcript);
+    recognition.start();
+  };
+
   return (
     <div className="ios">
-      {/* ================= search ================= */}
+      {/* ================= recherche ================= */}
       <section className={`screen${screen === 'detail' ? ' pushed' : ''}`}>
         <div className="scroll">
-          <h1 className="largetitle">Tokens</h1>
+          <h1 className="largetitle">Jetons</h1>
 
           <div className="segmented scope">
             <button
               className={scope === 'tokens' ? 'on' : ''}
               onClick={() => setScope('tokens')}
             >
-              Tokens
+              Jetons
             </button>
             <button className={scope === 'cards' ? 'on' : ''} onClick={() => setScope('cards')}>
-              All cards
+              Toutes les cartes
             </button>
           </div>
 
@@ -72,11 +92,19 @@ export default function PhoneApp({
               <Icon.Search />
               <input
                 value={query}
-                placeholder={scope === 'tokens' ? 'Goblin, Treasure, Angel…' : 'Llanowar Elves, Teferi…'}
+                placeholder={scope === 'tokens' ? 'Gobelin, Trésor, Ange…' : 'Llanowar Elves, Teferi…'}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              <button 
+                className="clear" 
+                onClick={startVoiceSearch} 
+                aria-label="Recherche vocale"
+                style={{ fontSize: '18px', padding: '0 4px', marginRight: query ? '0' : '4px' }}
+              >
+                🎤
+              </button>
               {query && (
-                <button className="clear" onClick={() => setQuery('')} aria-label="Clear">
+                <button className="clear" onClick={() => setQuery('')} aria-label="Effacer">
                   <Icon.Clear />
                 </button>
               )}
@@ -84,7 +112,7 @@ export default function PhoneApp({
           </div>
 
           <div className="chips">
-            {QUICK_PICKS.map((p) => (
+            {FRENCH_QUICK_PICKS.map((p) => (
               <button
                 key={p}
                 className={query === p ? 'chip on' : 'chip'}
@@ -102,7 +130,7 @@ export default function PhoneApp({
                   <span className="dot on" /> {printerName}
                 </span>
                 <button className="textbtn" onClick={() => connect()}>
-                  Reconnect
+                  Reconnecter
                 </button>
               </div>
             ) : (
@@ -113,7 +141,7 @@ export default function PhoneApp({
               >
                 <span className="row-label accent">
                   <Icon.Bluetooth />
-                  {busy ? 'Looking for your printer…' : 'Connect printer'}
+                  {busy ? 'Recherche de l\'imprimante…' : 'Connecter l\'imprimante'}
                 </span>
                 <Icon.ChevronRight />
               </button>
@@ -126,15 +154,14 @@ export default function PhoneApp({
 
           {!supported && (
             <p className="footnote warn">
-              This browser can’t reach Bluetooth devices. On iPhone use Bluefy, or the app
-              build.
+              Ce navigateur ne peut pas accéder au Bluetooth. Sur iPhone, utilisez Bluefy ou l'application native.
             </p>
           )}
 
           {status.kind === 'err' && screen === 'search' && (
             <div className="group">
               <button className="row tappable" onClick={() => connect()} disabled={busy}>
-                <span className="row-label accent">Try again</span>
+                <span className="row-label accent">Réessayer</span>
                 <Icon.ChevronRight />
               </button>
             </div>
@@ -142,7 +169,7 @@ export default function PhoneApp({
 
           {status.kind === 'err' && diag.length > 0 && screen === 'search' && (
             <details className="diagbox">
-              <summary>Connection details</summary>
+              <summary>Détails de connexion</summary>
               <pre>{diag.join('\n')}</pre>
             </details>
           )}
@@ -150,7 +177,7 @@ export default function PhoneApp({
           {results.length > 0 && (
             <>
               <h2 className="grouphead">
-                {results.length} {results.length === 1 ? 'token' : 'tokens'}
+                {results.length} {results.length === 1 ? 'jeton' : 'jetons'}
               </h2>
               <div className="group list">
                 {results.map((c) => (
@@ -180,19 +207,19 @@ export default function PhoneApp({
           )}
 
           {!searching && query && results.length === 0 && (
-            <p className="footnote">No tokens match “{query}”.</p>
+            <p className="footnote">Aucun jeton ne correspond à “{query}”.</p>
           )}
 
           <div className="tailspace" />
         </div>
       </section>
 
-      {/* ================= detail ================= */}
+      {/* ================= détails ================= */}
       <section className={`screen detail${screen === 'detail' ? ' open' : ''}`}>
         <div className="navbar">
           <button className="navback" onClick={() => setScreen('search')}>
             <Icon.ChevronLeft />
-            <span>Tokens</span>
+            <span>Jetons</span>
           </button>
           <span className="navtitle">{selected?.name ?? ''}</span>
           <button className="navbtn" onClick={() => setSheet(true)} aria-label="Options">
@@ -202,14 +229,14 @@ export default function PhoneApp({
 
         <div className="scroll">
           <div className="paper">
-            {selected ? <canvas ref={previewRef} /> : <p className="empty">No token selected</p>}
+            {selected ? <canvas ref={previewRef} /> : <p className="empty">Aucun jeton sélectionné</p>}
           </div>
 
           {mode === 'calib' ? (
             <div className="banner">
-              <span>Calibration strip</span>
+              <span>Bande de calibration</span>
               <button className="textbtn" onClick={() => setMode('both')}>
-                Done
+                Terminé
               </button>
             </div>
           ) : (
@@ -221,7 +248,7 @@ export default function PhoneApp({
                   disabled={m !== 'text' && !selected?.printImageUrl}
                   onClick={() => setMode(m)}
                 >
-                  {MODE_LABEL[m]}
+                  {FRENCH_MODE_LABEL[m]}
                 </button>
               ))}
             </div>
@@ -244,13 +271,13 @@ export default function PhoneApp({
               </span>
             </div>
             <Row
-              label="Paper used"
+              label="Papier utilisé"
               value={
                 (printSize ? `${printSize.w.toFixed(0)} × ${printSize.h.toFixed(0)} mm` : '—') +
-                (splitPlan && splitPlan.parts > 1 ? ` · ${splitPlan.parts} parts` : '')
+                (splitPlan && splitPlan.parts > 1 ? ` · ${splitPlan.parts} parties` : '')
               }
             />
-            <Row label="Print options" onClick={() => setSheet(true)} />
+            <Row label="Options d'impression" onClick={() => setSheet(true)} />
           </div>
 
           {status.msg && screen === 'detail' && (
@@ -262,30 +289,30 @@ export default function PhoneApp({
         <div className="bottombar">
           <button className="primary" onClick={print} disabled={!selected || busy}>
             {busy && progress > 0
-              ? `Printing ${Math.round(progress * 100)}%`
+              ? `Impression ${Math.round(progress * 100)}%`
               : copies > 1
-                ? `Print ${copies} labels`
-                : 'Print label'}
+                ? `Imprimer ${copies} étiquettes`
+                : 'Imprimer l\'étiquette'}
           </button>
         </div>
       </section>
 
-      {/* ================= settings sheet ================= */}
+      {/* ================= menu options ================= */}
       <div className={`backdrop${sheet ? ' open' : ''}`} onClick={() => setSheet(false)} />
       <div className={`sheet${sheet ? ' open' : ''}`}>
         <div className="grabber" />
         <div className="sheethead">
-          <span>Print options</span>
+          <span>Options d'impression</span>
           <button className="textbtn strong" onClick={() => setSheet(false)}>
-            Done
+            Terminé
           </button>
         </div>
 
         <div className="scroll">
-          <h2 className="grouphead">Look</h2>
+          <h2 className="grouphead">Apparence</h2>
           <div className="group">
             <SliderRow
-              label="Ink"
+              label="Encre"
               display={`${targetInk}%`}
               value={targetInk}
               min={15}
@@ -293,7 +320,7 @@ export default function PhoneApp({
               onChange={setTargetInk}
             />
             <SliderRow
-              label="Contrast"
+              label="Contraste"
               display={contrast > 0 ? `+${contrast}` : `${contrast}`}
               value={contrast}
               min={-50}
@@ -301,13 +328,13 @@ export default function PhoneApp({
               onChange={setContrast}
             />
             <SwitchRow
-              label="Adjust each card automatically"
+              label="Ajuster chaque carte automatiquement"
               checked={autoToneOn}
               onChange={setAutoToneOn}
             />
             {!autoToneOn && (
               <SliderRow
-                label="Brightness"
+                label="Luminosité"
                 display={brightness > 0 ? `+${brightness}` : `${brightness}`}
                 value={brightness}
                 min={-60}
@@ -317,7 +344,7 @@ export default function PhoneApp({
             )}
             {mode === 'text' && (
               <SwitchRow
-                label="Include a strip of art"
+                label="Inclure une bande d'illustration"
                 checked={showArt}
                 disabled={!selected?.artUrl}
                 onChange={setShowArt}
@@ -325,14 +352,14 @@ export default function PhoneApp({
             )}
             {mode === 'both' && (
               <SwitchRow
-                label="Fit text to content"
+                label="Adapter le texte au contenu"
                 checked={autoTextBlock}
                 onChange={setAutoTextBlock}
               />
             )}
             {mode === 'both' && !autoTextBlock && (
               <SliderRow
-                label="Text height"
+                label="Hauteur du texte"
                 display={`${textBlockMm} mm`}
                 value={textBlockMm}
                 min={14}
@@ -342,15 +369,15 @@ export default function PhoneApp({
             )}
             {selected && !selected.isToken && (
               <SwitchRow
-                label="Mark as TOKEN"
+                label="Marquer comme JETON"
                 checked={markTokens}
                 onChange={setMarkTokens}
               />
             )}
             {mode === 'both' && (
               <SliderRow
-                label="Card height"
-                display={cardMm > 0 ? `${cardMm} mm` : 'full'}
+                label="Hauteur de la carte"
+                display={cardMm > 0 ? `${cardMm} mm` : 'Pleine'}
                 value={cardMm}
                 min={0}
                 max={70}
@@ -360,11 +387,11 @@ export default function PhoneApp({
             )}
             {mode === 'card' && (
               <SelectRow
-                label="Card shape"
+                label="Format de la carte"
                 value={cardFit}
                 options={[
-                  ['aspect', 'Keep proportions'],
-                  ['label', 'Fit height'],
+                  ['aspect', 'Conserver les proportions'],
+                  ['label', 'Ajuster à la hauteur'],
                 ]}
                 onChange={(v) => setCardFit(v as CardFit)}
               />
@@ -372,14 +399,14 @@ export default function PhoneApp({
           </div>
           {solved?.clamped && (
             <p className="footnote warn">
-              This card can’t reach {targetInk}% ink without washing out. Try lowering Ink.
+              Cette carte ne peut pas atteindre {targetInk}% d'encre sans être délavée. Essayez de réduire l'Encre.
             </p>
           )}
 
-          <h2 className="grouphead">Paper</h2>
+          <h2 className="grouphead">Papier</h2>
           <div className="group">
             <SliderRow
-              label="Width"
+              label="Largeur"
               display={`${Math.min(labelMm.w, MAX_WIDTH_MM)} mm`}
               value={Math.min(labelMm.w, MAX_WIDTH_MM)}
               min={20}
@@ -388,7 +415,7 @@ export default function PhoneApp({
             />
             {mode !== 'both' && (
               <SliderRow
-                label="Height"
+                label="Hauteur"
                 display={`${labelMm.h} mm`}
                 value={labelMm.h}
                 min={16}
@@ -397,7 +424,7 @@ export default function PhoneApp({
               />
             )}
             <SliderRow
-              label="Tear-off gap"
+              label="Marge de coupe"
               display={`${tearMm} mm`}
               value={tearMm}
               min={0}
@@ -405,7 +432,7 @@ export default function PhoneApp({
               onChange={setTearMm}
             />
             <SliderRow
-              label="Darkness"
+              label="Intensité"
               display={`${density}`}
               value={density}
               min={1}
@@ -413,61 +440,61 @@ export default function PhoneApp({
               onChange={setDensity}
             />
             <SelectRow
-              label="Paper type"
+              label="Type de papier"
               value={media}
               options={[
-                [MEDIA_CONTINUOUS, 'Continuous roll'],
-                [MEDIA_LABEL_WITH_GAPS, 'Die-cut labels'],
-                [MEDIA_LABEL_WITH_MARKS, 'Black-mark labels'],
+                [MEDIA_CONTINUOUS, 'Rouleau continu'],
+                [MEDIA_LABEL_WITH_GAPS, 'Étiquettes prédécoupées'],
+                [MEDIA_LABEL_WITH_MARKS, 'Étiquettes avec marque noire'],
               ]}
               onChange={(v) => setMedia(Number(v))}
             />
           </div>
           <p className="footnote">
-            The print head is {MAX_WIDTH_MM} mm wide, so wider paper keeps a blank margin.
+            La tête d'impression fait {MAX_WIDTH_MM} mm de large, le papier plus large gardera une marge blanche.
           </p>
 
-          <h2 className="grouphead">Advanced</h2>
+          <h2 className="grouphead">Avancé</h2>
           <div className="group">
-            <Row label="Send test pattern" onClick={testPrint} />
-            <Row label="Clear printer" onClick={reset} />
+            <Row label="Imprimer un motif de test" onClick={testPrint} />
+            <Row label="Vider la mémoire (Reset)" onClick={reset} />
             <Row
-              label="Calibration strip"
+              label="Bande de calibration"
               onClick={() => {
                 if (!selected?.printImageUrl) return;
                 setMode('calib');
                 setSheet(false);
               }}
             />
-            <Row label={showDiag ? 'Hide diagnostics' : 'Show diagnostics'} onClick={() => setShowDiag((v) => !v)} />
+            <Row label={showDiag ? 'Masquer les diagnostics' : 'Afficher les diagnostics'} onClick={() => setShowDiag((v) => !v)} />
           </div>
 
           {showDiag && (
             <>
               <div className="group">
                 <SelectRow
-                  label="Dither"
+                  label="Tramage"
                   value={dither}
                   options={[
                     ['atkinson', 'Atkinson'],
                     ['floyd-steinberg', 'Floyd–Steinberg'],
-                    ['threshold', 'Threshold'],
+                    ['threshold', 'Seuillage'],
                   ]}
                   onChange={(v) => setDither(v as Dither)}
                 />
                 <SliderRow
-                  label="Threshold"
+                  label="Seuillage"
                   display={`${threshold}`}
                   value={threshold}
                   min={40}
                   max={220}
                   onChange={setThreshold}
                 />
-                <SwitchRow label="Local contrast (CLAHE)" checked={claheOn} onChange={setClaheOn} />
+                <SwitchRow label="Contraste local (CLAHE)" checked={claheOn} onChange={setClaheOn} />
                 {claheOn && (
                   <>
                     <SliderRow
-                      label="Clip limit"
+                      label="Limite de coupe"
                       display={clipLimit.toFixed(1)}
                       value={clipLimit}
                       min={1}
@@ -476,7 +503,7 @@ export default function PhoneApp({
                       onChange={setClipLimit}
                     />
                     <SliderRow
-                      label="Tiles"
+                      label="Tuiles"
                       display={`${tiles}×${tiles}`}
                       value={tiles}
                       min={2}
@@ -490,22 +517,20 @@ export default function PhoneApp({
               <div className="group">
                 {writeMode === 'without-response' && (
                   <p className="footnote warn">
-                    Without response, chunks are capped at 20 bytes — anything larger is
-                    dropped by the link with no error. Reliable but slower; use With
-                    response unless you are testing.
+                    Sans réponse, les paquets sont limités à 20 octets — les plus gros sont ignorés par la liaison sans erreur. Fiable mais plus lent ; utilisez Avec réponse sauf pour tester.
                   </p>
                 )}
                 <SelectRow
-                  label="Write mode"
+                  label="Mode d'écriture"
                   value={writeMode}
                   options={[
-                    ['with-response', 'With response'],
-                    ['without-response', 'Without response'],
+                    ['with-response', 'Avec réponse'],
+                    ['without-response', 'Sans réponse'],
                   ]}
                   onChange={(v) => setWriteMode(v as WriteMode)}
                 />
                 <SliderRow
-                  label="Pacing"
+                  label="Cadence"
                   display={`${chunkDelay} ms`}
                   value={chunkDelay}
                   min={0}
@@ -513,62 +538,60 @@ export default function PhoneApp({
                   onChange={setChunkDelay}
                 />
                 <p className="footnote">
-                  Pacing is the printer's flow control: a Bluetooth write is acknowledged by
-                  the radio, not the printer, so sending flat out overruns its buffer and it
-                  feeds blank paper. Lower it to print faster, but check the result.
+                  La cadence est le contrôle de flux : l'écriture Bluetooth est confirmée par la radio, pas par l'imprimante. Sans cadence, on sature sa mémoire et elle sort du papier blanc.
                 </p>
                 <SelectRow
-                  label="Chunk size"
+                  label="Taille des paquets"
                   value={chunkSize}
                   options={[
-                    [20, '20 B'],
-                    [60, '60 B'],
-                    [128, '128 B'],
-                    [180, '180 B'],
+                    [20, '20 O'],
+                    [60, '60 O'],
+                    [128, '128 O'],
+                    [180, '180 O'],
                   ]}
                   onChange={(v) => setChunkSize(Number(v))}
                 />
                 <SelectRow
-                  label="Print speed"
+                  label="Vitesse d'impression"
                   value={printSpeedMm}
                   options={[
-                    [10, '10 mm/s (safest)'],
+                    [10, '10 mm/s (Plus sûr)'],
                     [12.5, '12.5 mm/s'],
                     [15, '15 mm/s'],
                     [20, '20 mm/s'],
-                    [25, '25 mm/s (fastest)'],
+                    [25, '25 mm/s (Plus rapide)'],
                   ]}
                   onChange={(v) => setPrintSpeedMm(Number(v))}
                 />
                 <SelectRow
-                  label="Max job size"
+                  label="Taille max de tâche"
                   value={maxJobBytes}
                   options={[
-                    [30000, '30 KB'],
-                    [38000, '38 KB'],
-                    [44000, '44 KB (measured)'],
-                    [50000, '50 KB'],
-                    [200000, 'No limit'],
+                    [30000, '30 Ko'],
+                    [38000, '38 Ko'],
+                    [44000, '44 Ko (Mesuré)'],
+                    [50000, '50 Ko'],
+                    [200000, 'Sans limite'],
                   ]}
                   onChange={(v) => setMaxJobBytes(Number(v))}
                 />
                 <SelectRow
-                  label="Lines per block"
+                  label="Lignes par bloc"
                   value={maxBlockLines}
                   options={[
-                    [65535, 'No split'],
+                    [65535, 'Ne pas diviser'],
                     [1024, '1024'],
                     [512, '512'],
                     [256, '256'],
                   ]}
                   onChange={(v) => setMaxBlockLines(Number(v))}
                 />
-                <Row label="Only Phomemo devices" onClick={() => connect(true)} />
+                <Row label="Uniquement appareils Phomemo" onClick={() => connect(true)} />
               </div>
               {mode === 'calib' && (
                 <div className="group">
                   <label className="row slider">
-                    <span className="row-label">Brightness values</span>
+                    <span className="row-label">Valeurs de Luminosité</span>
                     <input
                       type="text"
                       value={sweepBright}
@@ -576,7 +599,7 @@ export default function PhoneApp({
                     />
                   </label>
                   <label className="row slider">
-                    <span className="row-label">Contrast values</span>
+                    <span className="row-label">Valeurs de Contraste</span>
                     <input
                       type="text"
                       value={sweepContrast}
@@ -584,26 +607,26 @@ export default function PhoneApp({
                     />
                   </label>
                   <SelectRow
-                    label="Layout"
+                    label="Disposition"
                     value={calibLayout}
                     options={[
-                      ['stack', 'Stacked'],
-                      ['grid', 'Grid'],
+                      ['stack', 'Empilé'],
+                      ['grid', 'Grille'],
                     ]}
                     onChange={(v) => setCalibLayout(v as CalibLayout)}
                   />
                   <SelectRow
-                    label="Sample"
+                    label="Échantillon"
                     value={calibContent}
                     options={[
-                      ['art', 'Art band'],
-                      ['card', 'Whole card'],
+                      ['art', 'Bande d\'art'],
+                      ['card', 'Carte entière'],
                     ]}
                     onChange={(v) => setCalibContent(v as CalibContent)}
                   />
                   {calibContent === 'art' && (
                     <SliderRow
-                      label="Sample height"
+                      label="Hauteur d'échantillon"
                       display={`${(cellH / 8).toFixed(0)} mm`}
                       value={cellH}
                       min={80}
@@ -615,10 +638,10 @@ export default function PhoneApp({
                 </div>
               )}
               <p className="footnote mono">
-                {geometry.widthPx} dots · {geometry.widthBytes} bytes/line
-                {tone ? ` · card mean ${tone.mean.toFixed(0)}` : ''}
+                {geometry.widthPx} points · {geometry.widthBytes} octets/ligne
+                {tone ? ` · moyenne carte ${tone.mean.toFixed(0)}` : ''}
                 {solved
-                  ? ` · B${solved.brightness > 0 ? '+' : ''}${solved.brightness} · ink ${(solved.predictedInk * 100).toFixed(0)}%`
+                  ? ` · L${solved.brightness > 0 ? '+' : ''}${solved.brightness} · encre ${(solved.predictedInk * 100).toFixed(0)}%`
                   : ''}
               </p>
               {diag.length > 0 && <pre>{diag.join('\n')}</pre>}
@@ -629,10 +652,10 @@ export default function PhoneApp({
             <>
               <h2 className="grouphead">Interface</h2>
               <div className="group">
-                <Row label="Use desktop layout" onClick={onUseDesktopLayout} />
+                <Row label="Utiliser l'affichage Bureau" onClick={onUseDesktopLayout} />
               </div>
               <p className="footnote">
-                The layout follows the window by default. Choosing one here remembers it.
+                L'affichage s'adapte à l'écran par défaut. Choisir une option ici la mémorise.
               </p>
             </>
           )}
